@@ -8,6 +8,20 @@
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1271/badge)](https://bestpractices.coreinfrastructure.org/projects/1271)
 [![Check Links](https://github.com/containerd/containerd/actions/workflows/links.yml/badge.svg)](https://github.com/containerd/containerd/actions/workflows/links.yml)
 
+# LLM Quick Start
+
+```bash
+# Start macOS CNI
+./bronzewillow
+# Start containerd
+sudo ./containerd
+# Pull tinyllama from ollama registry
+sudo crictl --timeout 100s --runtime-endpoint unix:///var/run/containerd/containerd.sock pull registry.ollama.ai/library/tinyllama:latest
+# Run tinyllama
+cd test/ollama
+sudo crictl --timeout 100s --runtime-endpoint unix:///var/run/containerd/containerd.sock run container-config.json pod-config.json
+```
+
 containerd is an industry-standard container runtime with an emphasis on simplicity, robustness, and portability. It is available as a daemon for Linux and Windows, which can manage the complete container lifecycle of its host system: image transfer and storage, container execution and supervision, low-level storage and network attachments, etc.
 
 containerd is a member of CNCF with ['graduated'](https://landscape.cncf.io/?selected=containerd) status.

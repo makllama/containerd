@@ -64,14 +64,8 @@ else
 	endif
 endif
 
-ifndef GODEBUG
-	EXTRA_LDFLAGS += -s -w
-	DEBUG_GO_GCFLAGS :=
-	DEBUG_TAGS :=
-else
-	DEBUG_GO_GCFLAGS := -gcflags=all="-N -l"
-	DEBUG_TAGS := static_build
-endif
+DEBUG_GO_GCFLAGS := -gcflags=all="-N -l"
+DEBUG_TAGS := static_build
 
 WHALE = "🇩"
 ONI = "👹"
@@ -264,7 +258,7 @@ bin/gen-manpages: cmd/gen-manpages FORCE
 
 bin/containerd-shim-runc-v2: cmd/containerd-shim-runc-v2 FORCE # set !cgo and omit pie for a static shim build: https://github.com/golang/go/issues/17789#issuecomment-258542220
 	@echo "$(WHALE) $@"
-	@CGO_ENABLED=${SHIM_CGO_ENABLED} $(GO) build ${GO_BUILD_FLAGS} -o $@ ${SHIM_GO_LDFLAGS} ${GO_TAGS} ./cmd/containerd-shim-runc-v2
+	@$(GO) build ${GO_BUILD_FLAGS} -o $@ ./cmd/containerd-shim-runc-v2
 
 binaries: $(BINARIES) ## build binaries
 	@echo "$(WHALE) $@"

@@ -20,12 +20,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	goruntime "runtime"
+	"strings"
 	"time"
 
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	sandboxstore "github.com/containerd/containerd/v2/internal/cri/store/sandbox"
 	"github.com/containerd/containerd/v2/internal/cri/types"
+	"github.com/containerd/containerd/v2/pkg/bw"
 	"github.com/containerd/errdefs"
 )
 
@@ -94,16 +99,76 @@ func (c *criService) getIPs(sandbox sandboxstore.Sandbox) (string, []string, err
 	// For sandboxes using the node network we are not
 	// responsible for reporting the IP.
 	if hostNetwork(config) {
-		return "", nil, nil
+		// XXX: For pod IP/IPs on macOS
+		if goruntime.GOOS == "darwin" {
+			data := strings.NewReader(fmt.Sprintf(`{ "name": "%s" }`, config.Metadata.Name))
+			req, err := http.NewRequest("GET", "http://localhost:9090/", data)
+			if err != nil {
+				goto Empty
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				goto Empty
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					goto Empty
+				}
+
+				get := bw.Response{}
+				err = json.Unmarshal(body, &get)
+				if err != nil {
+					goto Empty
+				}
+
+				return get.Addr, []string{get.Addr}, nil
+			}
+
+			var containerPort int32 = 80
+			if len(sandbox.Metadata.Config.PortMappings) > 0 {
+				pm := sandbox.Metadata.Config.PortMappings[0]
+				containerPort = pm.ContainerPort
+			}
+			data = strings.NewReader(fmt.Sprintf(`{ "name": "%s", "target_port": %d }`,
+				config.Metadata.Name, containerPort))
+			resp, err = http.Post("http://localhost:9090/", "application/json", data)
+			if err != nil {
+				goto Empty
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					goto Empty
+				}
+
+				post := bw.Response{}
+				err = json.Unmarshal(body, &post)
+				if err != nil {
+					goto Empty
+				}
+
+				return post.Addr, []string{post.Addr}, nil
+			}
+		}
+		goto Empty
 	}
 
 	if closed, err := sandbox.NetNS.Closed(); err != nil {
 		return "", nil, fmt.Errorf("check network namespace closed: %w", err)
 	} else if closed {
-		return "", nil, nil
+		goto Empty
 	}
 
 	return sandbox.IP, sandbox.AdditionalIPs, nil
+
+Empty:
+	return "", nil, nil
 }
 
 // toCRISandboxStatus converts sandbox metadata into CRI pod sandbox status.

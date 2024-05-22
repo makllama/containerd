@@ -58,6 +58,15 @@ const (
 
 	MediaTypeImageLayerEncrypted     = ocispec.MediaTypeImageLayer + "+encrypted"
 	MediaTypeImageLayerGzipEncrypted = ocispec.MediaTypeImageLayerGzip + "+encrypted"
+
+	MediaTypeOllamaBase     = "application/vnd.ollama.image."
+	MediaTypeOllamaModel    = MediaTypeOllamaBase + "model"
+	MediaTypeOllamaTemplate = MediaTypeOllamaBase + "template"
+	MediaTypeOllamaSystem   = MediaTypeOllamaBase + "system"
+	MediaTypeOllamaParams   = MediaTypeOllamaBase + "params"
+	MediaTypeOllamaAdapter  = MediaTypeOllamaBase + "adapter"
+	MediaTypeOllamaLicense  = MediaTypeOllamaBase + "license"
+	MediaTypeOllamaMessage  = MediaTypeOllamaBase + "message"
 )
 
 // DiffCompression returns the compression as defined by the layer diff media
@@ -98,6 +107,10 @@ func DiffCompression(ctx context.Context, mediaType string) (string, error) {
 			}
 		}
 		return "", nil
+	case MediaTypeOllamaModel, MediaTypeOllamaTemplate, MediaTypeOllamaSystem, MediaTypeOllamaParams,
+		MediaTypeOllamaAdapter, MediaTypeOllamaLicense, MediaTypeOllamaMessage:
+		// XXX: Ollama media types are not compressed
+		return "", nil
 	default:
 		return "", fmt.Errorf("unrecognised mediatype %s: %w", mediaType, errdefs.ErrNotImplemented)
 	}
@@ -133,6 +146,10 @@ func IsNonDistributable(mt string) bool {
 // IsLayerType returns true if the media type is a layer
 func IsLayerType(mt string) bool {
 	if strings.HasPrefix(mt, "application/vnd.oci.image.layer.") {
+		return true
+	}
+
+	if strings.HasPrefix(mt, MediaTypeOllamaBase) {
 		return true
 	}
 

@@ -20,10 +20,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/diff"
+	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/log"
 	digest "github.com/opencontainers/go-digest"
@@ -92,8 +96,23 @@ func (s *fsApplier) Apply(ctx context.Context, desc ocispec.Descriptor, mounts [
 		r: io.TeeReader(processor, digester.Hash()),
 	}
 
-	if err := apply(ctx, mounts, rc, config.SyncFs); err != nil {
-		return emptyDesc, err
+	if strings.HasPrefix(desc.MediaType, images.MediaTypeOllamaBase) {
+		blobPath, err := s.store.BlobPath(ctx, desc)
+		if err != nil {
+			return emptyDesc, fmt.Errorf("failed to get blob path: %w", err)
+		}
+
+		filename := strings.TrimPrefix(desc.MediaType, images.MediaTypeOllamaBase)
+		targetPath := filepath.Join(mounts[0].Source, filename)
+
+		err = os.Symlink(blobPath, targetPath)
+		if err != nil {
+			return emptyDesc, err
+		}
+	} else {
+		if err := apply(ctx, mounts, rc, config.SyncFs); err != nil {
+			return emptyDesc, err
+		}
 	}
 
 	// Read any trailing data
@@ -110,6 +129,7 @@ func (s *fsApplier) Apply(ctx context.Context, desc ocispec.Descriptor, mounts [
 			}
 		}
 	}
+
 	return ocispec.Descriptor{
 		MediaType: ocispec.MediaTypeImageLayer,
 		Size:      rc.c,
